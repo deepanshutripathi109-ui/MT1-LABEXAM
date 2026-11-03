@@ -1,1 +1,14 @@
-[]
+[
+  {
+    "id": 1,
+    "taskName": "Develop Login Page",
+    "assignedTo": "Rahul Sharma",
+    "status": "Pending"
+  },
+  {
+    "id": 2,
+    "taskName": "Create Dashboard",
+    "assignedTo": "Aman Verma",
+    "status": "Completed"
+  }
+]
