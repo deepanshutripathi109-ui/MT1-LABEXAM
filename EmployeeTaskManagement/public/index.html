@@ -1,0 +1,477 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Task Management</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f4f7fb;
+            color: #172033;
+        }
+
+        header {
+            background: #233b70;
+            color: white;
+            padding: 25px;
+            text-align: center;
+        }
+
+        header h1 {
+            margin: 0 0 8px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 20px;
+        }
+
+        .panel {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 3px 12px #00000010;
+        }
+
+        h2 {
+            margin-top: 0;
+        }
+
+        label {
+            display: block;
+            margin: 12px 0 6px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccd3df;
+            border-radius: 6px;
+        }
+
+        button {
+            padding: 10px 14px;
+            border: none;
+            border-radius: 6px;
+            background: #315fc5;
+            color: white;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        .form-btn {
+            width: 100%;
+        }
+
+        .task {
+            padding: 15px;
+            margin-bottom: 12px;
+            border: 1px solid #e1e7f0;
+            border-radius: 8px;
+        }
+
+        .task h3 {
+            margin: 0 0 8px;
+        }
+
+        .muted {
+            color: #68758b;
+            font-size: 14px;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 5px 9px;
+            border-radius: 20px;
+            background: #fff0ce;
+            color: #805800;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+
+        .completed {
+            background: #dcf7e7;
+            color: #167343;
+        }
+
+        .actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .secondary {
+            background: #e8eefb;
+            color: #24427f;
+        }
+
+        .danger {
+            background: #b73543;
+        }
+
+        #notice {
+            margin-bottom: 15px;
+            color: #24427f;
+        }
+
+        .empty {
+            text-align: center;
+            padding: 20px;
+            color: #68758b;
+        }
+
+        @media (max-width: 750px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <h1>Employee Task Management</h1>
+        <p>Manage and track your team's tasks</p>
+    </header>
+
+    <div class="container">
+
+        <div id="notice" role="status"></div>
+
+        <div class="layout">
+
+            <!-- Task Form -->
+            <section class="panel">
+
+                <h2 id="formHeading">Add New Task</h2>
+
+                <form id="taskForm">
+
+                    <label for="title">Task Title *</label>
+                    <input
+                        type="text"
+                        id="title"
+                        placeholder="Enter task title"
+                        maxlength="100"
+                        required
+                    >
+
+                    <label for="employee">Employee Name *</label>
+                    <input
+                        type="text"
+                        id="employee"
+                        placeholder="Enter employee name"
+                        maxlength="80"
+                        required
+                    >
+
+                    <label for="dueDate">Due Date</label>
+                    <input type="date" id="dueDate">
+
+                    <label for="status">Task Status</label>
+                    <select id="status">
+                        <option>Pending</option>
+                        <option>In Progress</option>
+                        <option>Completed</option>
+                    </select>
+
+                    <button type="submit" class="form-btn" id="saveBtn">
+                        Add Task
+                    </button>
+
+                    <button
+                        type="button"
+                        class="form-btn secondary"
+                        id="cancelEdit"
+                        style="display:none"
+                    >
+                        Cancel Edit
+                    </button>
+
+                </form>
+
+            </section>
+
+            <!-- Task List -->
+            <section class="panel">
+
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+                    <h2>Team Tasks</h2>
+                    <button type="button" id="refresh" class="secondary">
+                        Refresh
+                    </button>
+                </div>
+
+                <div id="tasks">
+                    <div class="empty">Loading tasks...</div>
+                </div>
+
+            </section>
+
+        </div>
+    </div>
+
+    <script>
+        // Express REST API endpoint
+        const API = '/api/tasks';
+
+        const form = document.getElementById('taskForm');
+        const taskList = document.getElementById('tasks');
+        const notice = document.getElementById('notice');
+        const cancelEdit = document.getElementById('cancelEdit');
+
+        let editingId = null;
+        let cachedTasks = [];
+
+        // Display messages
+        function showMessage(message) {
+            notice.textContent = message;
+        }
+
+        // API request function
+        async function apiRequest(url, options = {}) {
+            const response = await fetch(url, {
+                ...options,
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(options.headers || {})
+                }
+            });
+
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Request failed');
+            }
+
+            return data;
+        }
+
+        // Prevent HTML injection when displaying task values
+        function escapeHTML(value) {
+            return String(value ?? '').replace(/[&<>"']/g, char => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            })[char]);
+        }
+
+        // Fetch and display all tasks
+        async function loadTasks() {
+            try {
+                cachedTasks = await apiRequest(API);
+
+                if (cachedTasks.length === 0) {
+                    taskList.innerHTML =
+                        '<div class="empty">No tasks available. Add a task!</div>';
+                    return;
+                }
+
+                taskList.innerHTML = cachedTasks.map(task => {
+                    const completed = task.status === 'Completed';
+
+                    return `
+                        <div class="task">
+                            <h3>${escapeHTML(task.title)}</h3>
+
+                            <p class="muted">
+                                Assigned to: ${escapeHTML(task.employee)}
+                            </p>
+
+                            <p class="muted">
+                                Due date: ${escapeHTML(task.dueDate || 'Not set')}
+                            </p>
+
+                            <span class="status ${completed ? 'completed' : ''}">
+                                ${escapeHTML(task.status || 'Pending')}
+                            </span>
+
+                            <div class="actions">
+                                <button
+                                    class="secondary"
+                                    data-action="toggle"
+                                    data-id="${escapeHTML(task.id)}"
+                                >
+                                    ${completed ? 'Reopen' : 'Mark Completed'}
+                                </button>
+
+                                <button
+                                    class="secondary"
+                                    data-action="edit"
+                                    data-id="${escapeHTML(task.id)}"
+                                >
+                                    Edit
+                                </button>
+
+                                <button
+                                    class="danger"
+                                    data-action="delete"
+                                    data-id="${escapeHTML(task.id)}"
+                                >
+                                    Delete
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+            } catch (error) {
+                taskList.innerHTML =
+                    '<div class="empty">Unable to load tasks. Check your server.</div>';
+
+                showMessage(error.message);
+            }
+        }
+
+        // Add or update a task
+        form.addEventListener('submit', async function(event) {
+            event.preventDefault();
+
+            const task = {
+                title: document.getElementById('title').value.trim(),
+                employee: document.getElementById('employee').value.trim(),
+                dueDate: document.getElementById('dueDate').value,
+                status: document.getElementById('status').value
+            };
+
+            try {
+                const url = editingId
+                    ? `${API}/${encodeURIComponent(editingId)}`
+                    : API;
+
+                const method = editingId ? 'PUT' : 'POST';
+
+                await apiRequest(url, {
+                    method: method,
+                    body: JSON.stringify(task)
+                });
+
+                showMessage(
+                    editingId
+                        ? 'Task updated successfully!'
+                        : 'Task added successfully!'
+                );
+
+                resetForm();
+                await loadTasks();
+
+            } catch (error) {
+                showMessage(error.message);
+            }
+        });
+
+        // Reset form after saving or cancelling
+        function resetForm() {
+            editingId = null;
+            form.reset();
+
+            document.getElementById('formHeading').textContent =
+                'Add New Task';
+
+            document.getElementById('saveBtn').textContent =
+                'Add Task';
+
+            cancelEdit.style.display = 'none';
+        }
+
+        cancelEdit.addEventListener('click', resetForm);
+
+        document.getElementById('refresh')
+            .addEventListener('click', loadTasks);
+
+        // Handle edit, delete and status changes
+        taskList.addEventListener('click', async function(event) {
+            const button = event.target.closest('button[data-action]');
+
+            if (!button) return;
+
+            const action = button.dataset.action;
+            const id = button.dataset.id;
+
+            const task = cachedTasks.find(t => t.id === id);
+
+            if (!task) return;
+
+            try {
+                if (action === 'edit') {
+                    editingId = id;
+
+                    document.getElementById('title').value = task.title;
+                    document.getElementById('employee').value = task.employee;
+                    document.getElementById('dueDate').value = task.dueDate || '';
+                    document.getElementById('status').value = task.status || 'Pending';
+
+                    document.getElementById('formHeading').textContent =
+                        'Edit Task';
+
+                    document.getElementById('saveBtn').textContent =
+                        'Save Changes';
+
+                    cancelEdit.style.display = 'block';
+
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    return;
+                }
+
+                if (action === 'toggle') {
+                    const newStatus = task.status === 'Completed'
+                        ? 'Pending'
+                        : 'Completed';
+
+                    await apiRequest(`${API}/${encodeURIComponent(id)}`, {
+                        method: 'PATCH',
+                        body: JSON.stringify({ status: newStatus })
+                    });
+
+                    showMessage('Task status updated!');
+                }
+
+                if (action === 'delete') {
+                    if (!confirm(`Delete task "${task.title}"?`)) {
+                        return;
+                    }
+
+                    await apiRequest(`${API}/${encodeURIComponent(id)}`, {
+                        method: 'DELETE'
+                    });
+
+                    showMessage('Task deleted successfully!');
+                }
+
+                await loadTasks();
+
+            } catch (error) {
+                showMessage(error.message);
+            }
+        });
+
+        // Load tasks when page opens
+        loadTasks();
+    </script>
+
+</body>
+</html>
