@@ -29,6 +29,10 @@
             margin: 0 0 8px;
         }
 
+        header p {
+            margin: 0;
+        }
+
         .container {
             max-width: 1000px;
             margin: 30px auto;
@@ -64,6 +68,7 @@
             padding: 10px;
             border: 1px solid #ccd3df;
             border-radius: 6px;
+            font-size: 14px;
         }
 
         button {
@@ -115,10 +120,11 @@
             color: #167343;
         }
 
-        .actions {
+        .toolbar {
             display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
         }
 
         .secondary {
@@ -126,13 +132,10 @@
             color: #24427f;
         }
 
-        .danger {
-            background: #b73543;
-        }
-
         #notice {
             margin-bottom: 15px;
             color: #24427f;
+            font-size: 14px;
         }
 
         .empty {
@@ -151,6 +154,7 @@
 
 <body>
 
+    <!-- Header -->
     <header>
         <h1>Employee Task Management</h1>
         <p>Manage and track your team's tasks</p>
@@ -158,6 +162,7 @@
 
     <div class="container">
 
+        <!-- Success and error messages -->
         <div id="notice" role="status"></div>
 
         <div class="layout">
@@ -165,49 +170,54 @@
             <!-- Task Form -->
             <section class="panel">
 
-                <h2 id="formHeading">Add New Task</h2>
+                <h2>Add New Task</h2>
 
                 <form id="taskForm">
 
-                    <label for="title">Task Title *</label>
+                    <!-- Task ID -->
+                    <label for="taskId">Task ID *</label>
                     <input
                         type="text"
-                        id="title"
-                        placeholder="Enter task title"
+                        id="taskId"
+                        placeholder="Enter task ID"
+                        required
+                    >
+
+                    <!-- Task Name -->
+                    <label for="taskName">Task Name *</label>
+                    <input
+                        type="text"
+                        id="taskName"
+                        placeholder="Enter task name"
                         maxlength="100"
                         required
                     >
 
-                    <label for="employee">Employee Name *</label>
+                    <!-- Assigned Employee -->
+                    <label for="assignedTo">Assigned To *</label>
                     <input
                         type="text"
-                        id="employee"
+                        id="assignedTo"
                         placeholder="Enter employee name"
                         maxlength="80"
                         required
                     >
 
-                    <label for="dueDate">Due Date</label>
-                    <input type="date" id="dueDate">
-
-                    <label for="status">Task Status</label>
-                    <select id="status">
-                        <option>Pending</option>
-                        <option>In Progress</option>
-                        <option>Completed</option>
+                    <!-- Task Status -->
+                    <label for="status">Task Status *</label>
+                    <select id="status" required>
+                        <option value="Pending">Pending</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Completed">Completed</option>
                     </select>
 
-                    <button type="submit" class="form-btn" id="saveBtn">
-                        Add Task
-                    </button>
-
+                    <!-- Submit Button -->
                     <button
-                        type="button"
-                        class="form-btn secondary"
-                        id="cancelEdit"
-                        style="display:none"
+                        type="submit"
+                        class="form-btn"
+                        id="saveBtn"
                     >
-                        Cancel Edit
+                        Add Task
                     </button>
 
                 </form>
@@ -217,15 +227,22 @@
             <!-- Task List -->
             <section class="panel">
 
-                <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+                <div class="toolbar">
                     <h2>Team Tasks</h2>
-                    <button type="button" id="refresh" class="secondary">
+
+                    <button
+                        type="button"
+                        class="secondary"
+                        id="refresh"
+                    >
                         Refresh
                     </button>
                 </div>
 
                 <div id="tasks">
-                    <div class="empty">Loading tasks...</div>
+                    <div class="empty">
+                        Loading tasks...
+                    </div>
                 </div>
 
             </section>
@@ -234,24 +251,25 @@
     </div>
 
     <script>
-        // Express REST API endpoint
-        const API = '/api/tasks';
+        // API endpoint of the native Node.js HTTP server
+        const API = '/tasks';
 
         const form = document.getElementById('taskForm');
         const taskList = document.getElementById('tasks');
         const notice = document.getElementById('notice');
-        const cancelEdit = document.getElementById('cancelEdit');
+        const saveBtn = document.getElementById('saveBtn');
 
-        let editingId = null;
+        // Store fetched tasks
         let cachedTasks = [];
 
-        // Display messages
+        // Display success/error message
         function showMessage(message) {
             notice.textContent = message;
         }
 
-        // API request function
+        // Send HTTP requests
         async function apiRequest(url, options = {}) {
+
             const response = await fetch(url, {
                 ...options,
                 headers: {
@@ -269,7 +287,7 @@
             return data;
         }
 
-        // Prevent HTML injection when displaying task values
+        // Escape HTML special characters
         function escapeHTML(value) {
             return String(value ?? '').replace(/[&<>"']/g, char => ({
                 '&': '&amp;',
@@ -280,197 +298,117 @@
             })[char]);
         }
 
+        // GET /tasks
         // Fetch and display all tasks
         async function loadTasks() {
+
             try {
                 cachedTasks = await apiRequest(API);
 
+                if (!Array.isArray(cachedTasks)) {
+                    throw new Error('Invalid task data received');
+                }
+
                 if (cachedTasks.length === 0) {
-                    taskList.innerHTML =
-                        '<div class="empty">No tasks available. Add a task!</div>';
+                    taskList.innerHTML = `
+                        <div class="empty">
+                            No tasks available. Add a task!
+                        </div>
+                    `;
                     return;
                 }
 
                 taskList.innerHTML = cachedTasks.map(task => {
+
                     const completed = task.status === 'Completed';
 
                     return `
                         <div class="task">
-                            <h3>${escapeHTML(task.title)}</h3>
+
+                            <h3>
+                                ${escapeHTML(task.taskName)}
+                            </h3>
 
                             <p class="muted">
-                                Assigned to: ${escapeHTML(task.employee)}
+                                Task ID: ${escapeHTML(task.id)}
                             </p>
 
                             <p class="muted">
-                                Due date: ${escapeHTML(task.dueDate || 'Not set')}
+                                Assigned To:
+                                ${escapeHTML(task.assignedTo)}
                             </p>
 
                             <span class="status ${completed ? 'completed' : ''}">
-                                ${escapeHTML(task.status || 'Pending')}
+                                ${escapeHTML(task.status)}
                             </span>
 
-                            <div class="actions">
-                                <button
-                                    class="secondary"
-                                    data-action="toggle"
-                                    data-id="${escapeHTML(task.id)}"
-                                >
-                                    ${completed ? 'Reopen' : 'Mark Completed'}
-                                </button>
-
-                                <button
-                                    class="secondary"
-                                    data-action="edit"
-                                    data-id="${escapeHTML(task.id)}"
-                                >
-                                    Edit
-                                </button>
-
-                                <button
-                                    class="danger"
-                                    data-action="delete"
-                                    data-id="${escapeHTML(task.id)}"
-                                >
-                                    Delete
-                                </button>
-                            </div>
                         </div>
                     `;
+
                 }).join('');
 
             } catch (error) {
-                taskList.innerHTML =
-                    '<div class="empty">Unable to load tasks. Check your server.</div>';
+
+                taskList.innerHTML = `
+                    <div class="empty">
+                        Unable to load tasks.
+                    </div>
+                `;
 
                 showMessage(error.message);
             }
         }
 
-        // Add or update a task
+        // POST /add-task
+        // Add a new employee task
         form.addEventListener('submit', async function(event) {
+
             event.preventDefault();
 
+            // Collect form data
             const task = {
-                title: document.getElementById('title').value.trim(),
-                employee: document.getElementById('employee').value.trim(),
-                dueDate: document.getElementById('dueDate').value,
+                id: document.getElementById('taskId').value.trim(),
+                taskName: document.getElementById('taskName').value.trim(),
+                assignedTo: document.getElementById('assignedTo').value.trim(),
                 status: document.getElementById('status').value
             };
 
+            if (!task.id || !task.taskName || !task.assignedTo || !task.status) {
+                showMessage('Please fill in all required fields.');
+                return;
+            }
+
             try {
-                const url = editingId
-                    ? `${API}/${encodeURIComponent(editingId)}`
-                    : API;
+                saveBtn.disabled = true;
 
-                const method = editingId ? 'PUT' : 'POST';
-
-                await apiRequest(url, {
-                    method: method,
+                await apiRequest('/add-task', {
+                    method: 'POST',
                     body: JSON.stringify(task)
                 });
 
-                showMessage(
-                    editingId
-                        ? 'Task updated successfully!'
-                        : 'Task added successfully!'
-                );
+                showMessage('Task added successfully!');
 
-                resetForm();
+                form.reset();
+
+                // Refresh task list
                 await loadTasks();
 
             } catch (error) {
+
                 showMessage(error.message);
+
+            } finally {
+                saveBtn.disabled = false;
             }
         });
 
-        // Reset form after saving or cancelling
-        function resetForm() {
-            editingId = null;
-            form.reset();
-
-            document.getElementById('formHeading').textContent =
-                'Add New Task';
-
-            document.getElementById('saveBtn').textContent =
-                'Add Task';
-
-            cancelEdit.style.display = 'none';
-        }
-
-        cancelEdit.addEventListener('click', resetForm);
-
+        // Refresh button
         document.getElementById('refresh')
             .addEventListener('click', loadTasks);
 
-        // Handle edit, delete and status changes
-        taskList.addEventListener('click', async function(event) {
-            const button = event.target.closest('button[data-action]');
-
-            if (!button) return;
-
-            const action = button.dataset.action;
-            const id = button.dataset.id;
-
-            const task = cachedTasks.find(t => t.id === id);
-
-            if (!task) return;
-
-            try {
-                if (action === 'edit') {
-                    editingId = id;
-
-                    document.getElementById('title').value = task.title;
-                    document.getElementById('employee').value = task.employee;
-                    document.getElementById('dueDate').value = task.dueDate || '';
-                    document.getElementById('status').value = task.status || 'Pending';
-
-                    document.getElementById('formHeading').textContent =
-                        'Edit Task';
-
-                    document.getElementById('saveBtn').textContent =
-                        'Save Changes';
-
-                    cancelEdit.style.display = 'block';
-
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                    return;
-                }
-
-                if (action === 'toggle') {
-                    const newStatus = task.status === 'Completed'
-                        ? 'Pending'
-                        : 'Completed';
-
-                    await apiRequest(`${API}/${encodeURIComponent(id)}`, {
-                        method: 'PATCH',
-                        body: JSON.stringify({ status: newStatus })
-                    });
-
-                    showMessage('Task status updated!');
-                }
-
-                if (action === 'delete') {
-                    if (!confirm(`Delete task "${task.title}"?`)) {
-                        return;
-                    }
-
-                    await apiRequest(`${API}/${encodeURIComponent(id)}`, {
-                        method: 'DELETE'
-                    });
-
-                    showMessage('Task deleted successfully!');
-                }
-
-                await loadTasks();
-
-            } catch (error) {
-                showMessage(error.message);
-            }
-        });
-
         // Load tasks when page opens
         loadTasks();
+
     </script>
 
 </body>
